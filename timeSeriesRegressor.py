@@ -5,7 +5,7 @@ from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 
 def read_json():
@@ -74,13 +74,13 @@ class TimeSeriesRegressor:
         self.is_trained = True
         y_pred = self.t_model.predict(prepared_param['X_test'])
         # print(r2_score(prepared_param['y_test'], y_pred))
-        prepared_param['y_test'].plot(figsize=(20, 20))
-        pd.Series(y_pred, index=prepared_param['y_test'].index).plot()
-        feature_importances = {
-            feature: feature_value
-            for feature, feature_value
-            in zip(prepared_param['X'].columns, self.t_model.coef_)
-        }
+        # prepared_param['y_test'].plot(figsize=(20, 20))
+        # pd.Series(y_pred, index=prepared_param['y_test'].index).plot()
+        # feature_importances = {
+        #     feature: feature_value
+        #     for feature, feature_value
+        #     in zip(prepared_param['X'].columns, self.t_model.coef_)
+        # }
         # print(sorted(feature_importances.items(), key=lambda x: x[1]))
 
     def _train_gradient_boosting(self):
@@ -100,31 +100,68 @@ class TimeSeriesRegressor:
         # plt.show()
         # print(sorted(feature_importances.items(), key=lambda x: x[1]))
 
-    def _generate_next_row(self):
-        data = self.ts[:-self.num_lags-1:-1].values.reshape(1, self.num_lags)
-        current_time = self.ts.index[-1]
+    def _generate_next_row(self, ts):
+        data = ts[:-self.num_lags - 1:-1].values.reshape(1, self.num_lags)
+        current_time = ts.index[-1]
         next_time = current_time + self.granularity
         columns = [f'lag_{i}' for i in range(1, self.num_lags + 1)]
-        next_row = pd.DataFrame(data, columns=columns, index=[next_time])
-        return self._feature_enrichment(next_row)
+        next_row = pd.DataFrame(
+            data=data,
+            columns=columns,
+            index=[next_time]
+        )
+        return self._feature_enrichment(next_row), next_time
 
     def predict(self, n=1, n_is_timestamp=False):
         if self.is_trained:
             if n_is_timestamp:
-                pass
-            else:
-                return self.t_model.predict(self._generate_next_row())
-        else:
-            print('The model is not trained yet')
+                current_date = self.ts.index[-1]
+                requested_date = datetime.fromisoformat(n)
+                number_of_time_interval = int(
+                    (requested_date - current_date) / self.granularity)
+                if number_of_time_interval > 0:
+                    n = number_of_time_interval
+                elif requested_date in self.ts.index:
+                    return self.ts[self.ts.index == current_date]
+                else:
+                    return
 
+            local_ts = self.ts
+            predicted_ts = pd.Series()
+            for i in range(n + 1):
+                lags_matrix, next_time = self._generate_next_row(local_ts)
+                predicted_value = self.t_model.predict(lags_matrix)
+                local_ts = local_ts.append(
+                    pd.Series(
+                        data=predicted_value.item(),
+                        index=[next_time]
+                    )
+                )
+                predicted_ts = predicted_ts.append(
+                    pd.Series(
+                        data=predicted_value.item(),
+                        index=[next_time]
+                    )
+                )
+            predicted_ts.plot()
+            self.ts.plot(figsize=(100, 20))
+            plt.show()
+            return predicted_ts
+        else:
+            return -1
 
     def _prepare(self):
         prepared = {}
         self.lags_matrix = self._make_lags_matrix()
         prepared['feature_matrix'] = self._feature_enrichment(self.lags_matrix)
-        prepared['X'], prepared['y'] = prepared['feature_matrix'].drop(
-            ['target'], axis=1), prepared['feature_matrix']['target']
-        train_dictionary = ['X_train', 'X_test', 'y_train', 'y_test']
+        prepared['X'] = prepared['feature_matrix'].drop(['target'], axis=1)
+        prepared['y'] = prepared['feature_matrix']['target']
+        train_dictionary = [
+            'X_train',
+            'X_test',
+            'y_train',
+            'y_test'
+        ]
         train_tuple = train_test_split(
             prepared['X'],
             prepared['y'],
@@ -134,8 +171,14 @@ class TimeSeriesRegressor:
         return prepared
 
 
-trained_model = TimeSeriesRegressor(read_json())
-trained_model.train(0)
-print(trained_model.predict())
-# finish
-print('The end')
+if __name__ == '__main__':
+    trained_model = TimeSeriesRegressor(read_json())
+    trained_model.train(0)
+    print(trained_model.predict(n='1992-01-30', n_is_timestamp=True))
+    # finish
+    print('The end')
+
+# %load_ext autoreload
+# %autoreload 2
+# %matplotlib inline
+# from timeSeriesRegressor import *
