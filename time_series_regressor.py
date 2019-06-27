@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from datetime import timedelta, datetime
+from anomaly_detector import AnomalyDetector
 
 
 def read_json():
@@ -37,7 +38,8 @@ class TimeSeriesRegressor(object):
             lags_matrix[lag_name] = self.ts.shift(num_lag)[self.num_lags:]
         return lags_matrix
 
-    def _feature_enrichment(self, lags_matrix):
+    @staticmethod
+    def _feature_enrichment(lags_matrix):
         # static features
         lags_matrix['std'] = lags_matrix.drop(
             labels='target',
@@ -88,13 +90,11 @@ class TimeSeriesRegressor(object):
         self.t_model = GradientBoostingRegressor()
         self.t_model.fit(prepared_param['X_train'], prepared_param['y_train'])
         self.is_trained = True
-        # y_pred = self.t_model.predict(prepared_param['X_test'])
-        # print(r2_score(prepared_param['y_test'], y_pred))
-        # prepared_param['y_test'].plot(figsize=(20, 20))
         # self.plotting = pd.Series(
         #     y_pred,
         #     index=prepared_param['y_test'].index,
         # )
+        # plt.show()
         # feature_importances = {
         #     feature: feature_value
         #     for feature, feature_value in zip(
@@ -102,7 +102,6 @@ class TimeSeriesRegressor(object):
         #     self.t_model.feature_importances_,
         # )
         # }
-        # plt.show()
         # print(sorted(feature_importances.items(), key=lambda x: x[1]))
 
     def _generate_next_row(self, ts):
@@ -131,19 +130,21 @@ class TimeSeriesRegressor(object):
     def _is_entry_to_ts(self, requested_date):
         return requested_date in self.ts
 
-    def predict(self, n=1, n_is_timestamp=False):
+    def predict(self, n_points=1, iso_timestamp=''):
         if not self.is_trained:
             return
-        if n_is_timestamp:
-            requested_date = datetime.fromisoformat(n)
+        if iso_timestamp:
+            requested_date = datetime.fromisoformat(iso_timestamp)
             if self._is_entry_to_ts(requested_date):
                 return self.ts[self.ts.index == requested_date]
-            n = self._parse_timestamp(requested_date)
-            if n:
+
+            n_points = self._parse_timestamp(requested_date)
+            if not n_points:
                 return None
+
         local_ts = self.ts
         predicted_ts = pd.Series()
-        for _ in range(n + 1):
+        for _ in range(n_points + 1):
             lags_matrix, next_time = self._generate_next_row(local_ts)
             predicted_value = self.t_model.predict(lags_matrix)
             local_ts = local_ts.append(
@@ -158,17 +159,22 @@ class TimeSeriesRegressor(object):
                     index=[next_time],
                 ),
             )
-        predicted_ts.plot()
-        self.ts.plot(figsize=(100, 20))
-        plt.show()
+        # predicted_ts.plot()
+        # self.ts.plot(figsize=(100, 20))
+        # plt.show()
         return predicted_ts
 
     def _prepare(self):
-        prepared = {}
+        self.prepared = {}
         self.lags_matrix = self._make_lags_matrix()
-        prepared['feature_matrix'] = self._feature_enrichment(self.lags_matrix)
-        prepared['X'] = prepared['feature_matrix'].drop(['target'], axis=1)
-        prepared['y'] = prepared['feature_matrix']['target']
+        self.prepared['feature_matrix'] = self._feature_enrichment(
+            lags_matrix=self.lags_matrix,
+        )
+        self.prepared['X'] = self.prepared['feature_matrix'].drop(
+            labels=['target'],
+            axis=1,
+        )
+        self.prepared['y'] = self.prepared['feature_matrix']['target']
         train_dictionary = [
             'X_train',
             'X_test',
@@ -176,20 +182,26 @@ class TimeSeriesRegressor(object):
             'y_test',
         ]
         train_tuple = train_test_split(
-            prepared['X'],
-            prepared['y'],
+            self.prepared['X'],
+            self.prepared['y'],
             test_size=self.train_test_size,
         )
-        prepared.update(zip(train_dictionary, train_tuple))
-        return prepared
+        self.prepared.update(zip(train_dictionary, train_tuple))
+        return self.prepared  # ToDO: изменить название, оно не понятно
 
 
 if __name__ == '__main__':
-    trained_model = TimeSeriesRegressor(read_json())
-    print(trained_model.is_trained)
+    trained_model = TimeSeriesRegressor(read_json(), num_lags=60)
     trained_model.train(0)
-    print(trained_model.predict(n='1992-01-30', n_is_timestamp=True))
+    print(f'The model was train: {trained_model.is_trained}')
+    print(
+        'This is predict: ',
+        trained_model.predict(n_points=10),
+    )
+    a_detector = AnomalyDetector().fit(trained_model)
+
     # finish
+    print(f'Standard deviation: {a_detector}')
     print('The end')
 
 # %load_ext autoreload
