@@ -25,15 +25,13 @@ class AnomalyDetector(object):
             lambda x: x.mean(),
             axis=1,
         )
-        calaulate_scuare_deviation[
-            'deviation'
-        ] = calaulate_scuare_deviation.apply(
+        calaulate_scuare_deviation['deviation'] = calaulate_scuare_deviation.apply(
             lambda x: x['y_pred'] - x['mean'],
-            axis=1
+            axis=1,
         )
         calaulate_scuare_deviation['square_deviation'] = calaulate_scuare_deviation.apply(
             lambda x: x['deviation'] ** 2,
-            axis=1
+            axis=1,
         )
         dispersion = calaulate_scuare_deviation['square_deviation'].sum() / len(
             calaulate_scuare_deviation['square_deviation'],
