@@ -7,6 +7,7 @@ from datetime import timedelta, datetime
 from anomaly_detector import AnomalyDetector
 
 
+
 def read_json():
     # read time series
     return pd.read_csv(

@@ -39,6 +39,7 @@ class AnomalyDetector(object):
         self.standard_deviation = np.sqrt(dispersion)
         return self.standard_deviation
 
+
     def detect(self, predict, real_val):
         confidence_intervals = range(
             predict - self.standard_deviation * 3,
