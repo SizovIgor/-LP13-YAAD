@@ -30,10 +30,15 @@ class TimeSeriesRegressor:
         self.t_model = None
 
     def _make_lags_matrix(self, ts):
-        values = np.array([
-            ts[row:row + self.num_lags][::-1]
-            for row in range(len(ts) - self.num_lags)
-        ])
+        values = np.append(
+            np.array([ts[self.num_lags - 1::-1]]),
+            np.array([
+                ts[row + self.num_lags:row:-1]
+                for row in range(len(ts) - self.num_lags-1)
+            ]),
+            axis=0
+        )
+
         columns = ['lag_%s' % (i + 1) for i in range(self.num_lags)]
         lags_matrix = pd.DataFrame(
             columns=columns,
