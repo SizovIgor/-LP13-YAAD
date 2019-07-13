@@ -35,21 +35,14 @@ class TimeSeriesRegressor:
             for row in range(len(ts) - self.num_lags)
         ])
         columns = ['lag_%s' % (i + 1) for i in range(self.num_lags)]
-        frame = pd.DataFrame(
+        lags_matrix = pd.DataFrame(
             columns=columns,
             data=values,
             index=ts[self.num_lags:].index
         )
-        frame['target'] = ts[self.num_lags:]
+        lags_matrix['target'] = ts[self.num_lags:]
 
-        # lags_matrix = pd.DataFrame(index=ts[self.num_lags:].index)
-        # target = ts[self.num_lags:]
-        # lags_matrix['target'] = target
-        # for num_lag in range(1, self.num_lags + 1):
-        #     lag_name = f'lag_{num_lag}'
-        #     lags_matrix[lag_name] = ts.shift(num_lag)[self.num_lags:]
-        # return lags_matrix
-        return frame
+        return lags_matrix
 
     @staticmethod
     def _feature_enrichment(lags_matrix):
